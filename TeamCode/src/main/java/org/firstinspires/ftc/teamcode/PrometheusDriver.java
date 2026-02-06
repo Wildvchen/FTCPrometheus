@@ -18,7 +18,7 @@ public class PrometheusDriver extends LinearOpMode {
     static final double KICKER_EXTENDED = 0.5;
 
     // Timing constants for the kick sequence
-    static final double SPINUP_TIME = 0.4;
+    static final double SPINUP_TIME = 1;
     static final double KICK_TIME = 0.2;
     static final double RETRACT_TIME = 0.6; // Time for kicker to retract and spindexer to rotate
 
@@ -116,18 +116,19 @@ public class PrometheusDriver extends LinearOpMode {
             rightBackDrive.setPower(backRightPower);
 
             // --- Intake Logic (Gamepad 1) ---
+            // Bumpers toggle intake on (forward/reverse), B button stops it.
             if (gamepad1.right_bumper) {
                 intakeMotor.setPower(1.0);
             } else if (gamepad1.left_bumper) {
                 intakeMotor.setPower(-1.0);
-            } else {
+            } else if (gamepad1.b) {
                 intakeMotor.setPower(0.0);
             }
 
             // --- Outtake Turning Logic (Gamepad 2) ---
             // Controlling the horizontal turning of the outtake assembly
-            double turnPower = gamepad2.left_stick_x;
-            outtakeTurnMotor.setPower(turnPower);
+//            double turnPower = gamepad2.left_stick_x;
+//            outtakeTurnMotor.setPower(turnPower);
 
             // --- Spindexer Logic (Manual Y press - Gamepad 1) ---
             if (gamepad1.y) {
@@ -199,10 +200,9 @@ public class PrometheusDriver extends LinearOpMode {
             // --- Telemetry ---
             telemetry.addData("Status", "Running");
             telemetry.addData("Kick State", currentKickState);
-            telemetry.addData("Outtake Turn Power", turnPower);
+            //telemetry.addData("Outtake Turn Power", turnPower);
             telemetry.addData("Spindexer Target", spindexerTarget);
             telemetry.update();
         }
     }
 }
-
