@@ -78,8 +78,6 @@ public class PrometheusDriver extends LinearOpMode {
         kickerServo2.setDirection(Servo.Direction.FORWARD);
 
         // Configure spindexer to use encoder
-        // If the motor spins the wrong way relative to the encoder, use:
-        // spindexer.setDirection(DcMotor.Direction.REVERSE);
         spindexer.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         spindexer.setTargetPosition(0);
         spindexer.setMode(DcMotor.RunMode.RUN_TO_POSITION);
@@ -151,13 +149,12 @@ public class PrometheusDriver extends LinearOpMode {
             // --- Spindexer / Automated Intake Logic (Gamepad 1) ---
             
             // Start Automated Spindexer Sequence for 3 balls (Button Y)
-            if (gamepad1.y && !lastYState && currentIntakeState == IntakeState.IDLE) {
+            if (gamepad1.y && !lastYState && currentIntakeState == IntakeState.IDLE && currentKickState == KickState.IDLE) {
                 currentIntakeState = IntakeState.WAIT_FOR_BALL;
                 intakeCount = 0;
                 intakeTimer.reset();
-                intakeMotor.setPower(1.0); // Ensure intake is running
+                intakeMotor.setPower(1.0); 
             }
-            lastYState = gamepad1.y;
 
             // Handle Automated Intake State Machine (Cycles 3 times)
             if (currentIntakeState == IntakeState.WAIT_FOR_BALL) {
@@ -170,7 +167,6 @@ public class PrometheusDriver extends LinearOpMode {
                         intakeTimer.reset();
                     } else {
                         currentIntakeState = IntakeState.IDLE;
-                        // Intake stays on as per your preference, or you can add intakeMotor.setPower(0) here
                     }
                 }
             }
@@ -180,14 +176,13 @@ public class PrometheusDriver extends LinearOpMode {
                 spindexerTarget = spindexer.getCurrentPosition();
                 spindexer.setTargetPosition(spindexerTarget);
             }
-            lastXState = gamepad1.x;
 
             // --- Automated Kick Sequence (Gamepad 1 Button A) ---
             switch (currentKickState) {
                 case IDLE:
                     outtakeMotor1.setPower(0.0);
                     outtakeMotor2.setPower(0.0);
-                    if (gamepad1.a && !lastAState) {
+                    if (gamepad1.a && !lastAState && currentIntakeState == IntakeState.IDLE) {
                         ballsKicked = 0;
                         currentKickState = KickState.SPINUP;
                         kickTimer.reset();
@@ -244,6 +239,10 @@ public class PrometheusDriver extends LinearOpMode {
                     }
                     break;
             }
+
+            // Update button states for next loop
+            lastYState = gamepad1.y;
+            lastXState = gamepad1.x;
             lastAState = gamepad1.a;
 
             // --- Telemetry ---
