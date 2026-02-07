@@ -9,7 +9,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 @TeleOp(name = "Mecanum Drive + Spindexer + Kicker + Dual Outtake + Intake", group = "Linear Opmode")
 public class PrometheusDriver extends LinearOpMode {
 
-    // REV Through Bore Encoder constants
+    // REV Through Bore Encoder constants (8192 ticks/rev on the shaft)
     static final double TICKS_PER_REV = 8192;
     static final int TICKS_FOR_60_DEGREES = (int)(TICKS_PER_REV / 6.0);
     static final int TICKS_FOR_120_DEGREES = (int)(TICKS_PER_REV / 3.0);
@@ -47,6 +47,7 @@ public class PrometheusDriver extends LinearOpMode {
 
         // Initialize spindexer motor
         DcMotor spindexer = hardwareMap.get(DcMotor.class, "spindexer");
+        spindexer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // Initialize outtake motors (Flywheels)
         DcMotor outtakeMotor1 = hardwareMap.get(DcMotor.class, "outtake_motor1");
@@ -77,6 +78,8 @@ public class PrometheusDriver extends LinearOpMode {
         kickerServo2.setDirection(Servo.Direction.FORWARD);
 
         // Configure spindexer to use encoder
+        // If the motor spins the wrong way relative to the encoder, use:
+        // spindexer.setDirection(DcMotor.Direction.REVERSE);
         spindexer.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         spindexer.setTargetPosition(0);
         spindexer.setMode(DcMotor.RunMode.RUN_TO_POSITION);
