@@ -11,22 +11,30 @@ public class PrometheusDriver extends LinearOpMode {
 
     // REV Through Bore Encoder constants
     static final double TICKS_PER_REV = 8192;
+    static final int TICKS_FOR_60_DEGREES = (int)(TICKS_PER_REV / 6.0);
     static final int TICKS_FOR_120_DEGREES = (int)(TICKS_PER_REV / 3.0);
+    static final int TICKS_FOR_180_DEGREES = (int)(TICKS_PER_REV / 2.0);
 
     // Kicker constants
     static final double KICKER_RETRACED = 0.0;
-    static final double KICKER_EXTENDED = 0.5;
+    static final double KICKER_EXTENDED = 0.22;
 
-    // Timing constants for the kick sequence
-    static final double SPINUP_TIME = 1;
+    // Timing constants for the sequences
+    static final double SPINUP_TIME = 0.8; 
     static final double KICK_TIME = 0.2;
-    static final double RETRACT_TIME = 0.6; // Time for kicker to retract and spindexer to rotate
+    static final double RETRACT_TIME = 0.6; 
+    static final double INTAKE_WAIT_TIME = 0.5; // Time for ball to enter spindexer before rotating
 
     private enum KickState {
         IDLE,
         SPINUP,
         KICK,
         RETRACT
+    }
+
+    private enum IntakeState {
+        IDLE,
+        WAIT_FOR_BALL
     }
 
     @Override
@@ -60,9 +68,13 @@ public class PrometheusDriver extends LinearOpMode {
         rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
 
-        // Outtake motors: often one needs to be reversed if they are facing each other
+        // Outtake motors
         outtakeMotor1.setDirection(DcMotor.Direction.FORWARD);
         outtakeMotor2.setDirection(DcMotor.Direction.REVERSE);
+
+        // Kickers: One is reversed to move in sync physically
+        kickerServo1.setDirection(Servo.Direction.REVERSE);
+        kickerServo2.setDirection(Servo.Direction.FORWARD);
 
         // Configure spindexer to use encoder
         spindexer.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -77,11 +89,16 @@ public class PrometheusDriver extends LinearOpMode {
         // Track state for buttons and sequences
         boolean lastYState = false;
         boolean lastAState = false;
+        boolean lastXState = false;
         int spindexerTarget = 0;
         int ballsKicked = 0;
+        int intakeCount = 0;
 
         KickState currentKickState = KickState.IDLE;
+        IntakeState currentIntakeState = IntakeState.IDLE;
+        
         ElapsedTime kickTimer = new ElapsedTime();
+        ElapsedTime intakeTimer = new ElapsedTime();
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -116,32 +133,53 @@ public class PrometheusDriver extends LinearOpMode {
             rightBackDrive.setPower(backRightPower);
 
             // --- Intake Logic (Gamepad 1) ---
-            // Bumpers toggle intake on (forward/reverse), B button stops it.
+            // Manual overrides for intake
             if (gamepad1.right_bumper) {
                 intakeMotor.setPower(1.0);
+                currentIntakeState = IntakeState.IDLE;
             } else if (gamepad1.left_bumper) {
                 intakeMotor.setPower(-1.0);
+                currentIntakeState = IntakeState.IDLE;
             } else if (gamepad1.b) {
                 intakeMotor.setPower(0.0);
+                currentIntakeState = IntakeState.IDLE;
             }
 
-            // --- Outtake Turning Logic (Gamepad 2) ---
-            // Controlling the horizontal turning of the outtake assembly
-//            double turnPower = gamepad2.left_stick_x;
-//            outtakeTurnMotor.setPower(turnPower);
+            // --- Spindexer / Automated Intake Logic (Gamepad 1) ---
+            
+            // Start Automated Spindexer Sequence for 3 balls (Button Y)
+            if (gamepad1.y && !lastYState && currentIntakeState == IntakeState.IDLE) {
+                currentIntakeState = IntakeState.WAIT_FOR_BALL;
+                intakeCount = 0;
+                intakeTimer.reset();
+                intakeMotor.setPower(1.0); // Ensure intake is running
+            }
+            lastYState = gamepad1.y;
 
-            // --- Spindexer Logic (Manual Y press - Gamepad 1) ---
-            if (gamepad1.y) {
-                if (!lastYState) {
+            // Handle Automated Intake State Machine (Cycles 3 times)
+            if (currentIntakeState == IntakeState.WAIT_FOR_BALL) {
+                if (intakeTimer.seconds() >= INTAKE_WAIT_TIME) {
                     spindexerTarget += TICKS_FOR_120_DEGREES;
                     spindexer.setTargetPosition(spindexerTarget);
+                    intakeCount++;
+                    
+                    if (intakeCount < 3) {
+                        intakeTimer.reset();
+                    } else {
+                        currentIntakeState = IntakeState.IDLE;
+                        // Intake stays on as per your preference, or you can add intakeMotor.setPower(0) here
+                    }
                 }
-                lastYState = true;
-            } else {
-                lastYState = false;
             }
 
-            // --- Automated Kick Sequence (A button for 3 balls - Gamepad 1) ---
+            // Zero the Indexing (Accumulator Strategy - Button X)
+            if (gamepad1.x && !lastXState) {
+                spindexerTarget = spindexer.getCurrentPosition();
+                spindexer.setTargetPosition(spindexerTarget);
+            }
+            lastXState = gamepad1.x;
+
+            // --- Automated Kick Sequence (Gamepad 1 Button A) ---
             switch (currentKickState) {
                 case IDLE:
                     outtakeMotor1.setPower(0.0);
@@ -150,6 +188,10 @@ public class PrometheusDriver extends LinearOpMode {
                         ballsKicked = 0;
                         currentKickState = KickState.SPINUP;
                         kickTimer.reset();
+
+                        // Move first ball 60 degrees to reach the kicker at 180 deg
+                        spindexerTarget += TICKS_FOR_60_DEGREES;
+                        spindexer.setTargetPosition(spindexerTarget);
                     }
                     break;
 
@@ -173,12 +215,16 @@ public class PrometheusDriver extends LinearOpMode {
                         kickerServo2.setPosition(KICKER_RETRACED);
 
                         if (ballsKicked < 3) {
+                            // Subsequent balls move 120 degrees
                             spindexerTarget += TICKS_FOR_120_DEGREES;
                             spindexer.setTargetPosition(spindexerTarget);
 
                             currentKickState = KickState.RETRACT;
                             kickTimer.reset();
                         } else {
+                            // Final re-alignment: Move 60 degrees to reset slots to 0, 120, 240
+                            spindexerTarget += TICKS_FOR_60_DEGREES;
+                            spindexer.setTargetPosition(spindexerTarget);
                             currentKickState = KickState.IDLE;
                         }
                     }
@@ -200,8 +246,9 @@ public class PrometheusDriver extends LinearOpMode {
             // --- Telemetry ---
             telemetry.addData("Status", "Running");
             telemetry.addData("Kick State", currentKickState);
-            //telemetry.addData("Outtake Turn Power", turnPower);
+            telemetry.addData("Intake Count", intakeCount);
             telemetry.addData("Spindexer Target", spindexerTarget);
+            telemetry.addData("Intake Power", intakeMotor.getPower());
             telemetry.update();
         }
     }
