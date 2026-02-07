@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -62,6 +63,9 @@ public class PrometheusDriver extends LinearOpMode {
         // Initialize kicker servos
         Servo kickerServo1 = hardwareMap.get(Servo.class, "kicker_1");
         Servo kickerServo2 = hardwareMap.get(Servo.class, "kicker_2");
+
+        // Initialize Color Sensor
+        ColorSensor ballSensor = hardwareMap.get(ColorSensor.class, "ball_sensor");
 
         // Set directions
         leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
@@ -245,10 +249,26 @@ public class PrometheusDriver extends LinearOpMode {
             lastXState = gamepad1.x;
             lastAState = gamepad1.a;
 
+            // --- Ball Color Detection ---
+            String ballColor = "None";
+            int r = ballSensor.red();
+            int g = ballSensor.green();
+            int b = ballSensor.blue();
+
+            // Detect Purple and Green
+            if (g > r && g > b) {
+                ballColor = "Green";
+            } else if ((r > g && b > g) || (b > r && b > g)) {
+                // Purple is a mix of Red and Blue, or sometimes just looks very Blue
+                ballColor = "Purple";
+            }
+
             // --- Telemetry ---
             telemetry.addData("Status", "Running");
             telemetry.addData("Kick State", currentKickState);
             telemetry.addData("Intake Count", intakeCount);
+            telemetry.addData("Ball Color", ballColor);
+            telemetry.addData("RGB", "R: %d, G: %d, B: %d", r, g, b);
             telemetry.addData("Spindexer Target", spindexerTarget);
             telemetry.addData("Intake Power", intakeMotor.getPower());
             telemetry.update();
