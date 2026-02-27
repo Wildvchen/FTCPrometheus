@@ -3,22 +3,22 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Servo;
 
 @TeleOp(name = "Prometheus Driver Mecanum", group = "Linear Opmode")
 public class PrometheusDriver extends LinearOpMode {
 
     private DcMotor leftFrontDrive, leftBackDrive, rightFrontDrive, rightBackDrive;
-    private DcMotor intakeMotor1, intakeMotor2;
-    private DcMotor outtakeMotor1, outtakeMotor2;
-    private DcMotor transferMotor;
+    private DcMotor intakeMotor, transferMotor;
+    private Servo kickerServo1, kickerServo2;
 
-    private boolean intakeOn = false;
-    private boolean outtakeOn = false;
-    private boolean transferOn = false;
-
+    private boolean intakeTransferOn = false;
     private boolean lastAState = false;
     private boolean lastBState = false;
-    private boolean lastXState = false;
+
+    // Kicker positions - adjust these values as needed
+    private static final double KICKER_REST = 0.0;
+    private static final double KICKER_UP = 0.5;
 
     @Override
     public void runOpMode() {
@@ -28,11 +28,11 @@ public class PrometheusDriver extends LinearOpMode {
         rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
         rightBackDrive  = hardwareMap.get(DcMotor.class, "right_back_drive");
 
-        intakeMotor1 = hardwareMap.get(DcMotor.class, "intake_motor1");
-        intakeMotor2 = hardwareMap.get(DcMotor.class, "intake_motor2");
-        outtakeMotor1 = hardwareMap.get(DcMotor.class, "outtake_motor1");
-        outtakeMotor2 = hardwareMap.get(DcMotor.class, "outtake_motor2");
+        intakeMotor = hardwareMap.get(DcMotor.class, "intake_motor");
         transferMotor = hardwareMap.get(DcMotor.class, "transfer_motor");
+        
+        kickerServo1 = hardwareMap.get(Servo.class, "kicker_servo1");
+        kickerServo2 = hardwareMap.get(Servo.class, "kicker_servo2");
 
         // Set directions
         leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
@@ -40,13 +40,15 @@ public class PrometheusDriver extends LinearOpMode {
         rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
         
-        intakeMotor1.setDirection(DcMotor.Direction.FORWARD);
-        intakeMotor2.setDirection(DcMotor.Direction.REVERSE);
-
-        outtakeMotor1.setDirection(DcMotor.Direction.FORWARD);
-        outtakeMotor2.setDirection(DcMotor.Direction.FORWARD);
-        
+        intakeMotor.setDirection(DcMotor.Direction.FORWARD);
         transferMotor.setDirection(DcMotor.Direction.FORWARD);
+        
+        // Reverse one servo if they are mounted symmetrically
+        kickerServo1.setDirection(Servo.Direction.FORWARD);
+        kickerServo2.setDirection(Servo.Direction.REVERSE);
+
+        kickerServo1.setPosition(KICKER_REST);
+        kickerServo2.setPosition(KICKER_REST);
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -70,39 +72,33 @@ public class PrometheusDriver extends LinearOpMode {
             rightFrontDrive.setPower(frontRightPower);
             rightBackDrive.setPower(backRightPower);
 
-            // --- Intake Control (Toggle - Button A) ---
+            // --- Intake & Transfer Control (Toggle - Button A) ---
             if (gamepad1.a && !lastAState) {
-                intakeOn = !intakeOn;
+                intakeTransferOn = !intakeTransferOn;
             }
             lastAState = gamepad1.a;
 
-            // --- Outtake/Flywheel Control (Toggle - Button B) ---
+            // --- Kicker Sequence (Button B) ---
             if (gamepad1.b && !lastBState) {
-                outtakeOn = !outtakeOn;
+                // Kick 3 times
+                for (int i = 0; i < 3; i++) {
+                    kickerServo1.setPosition(KICKER_UP);
+                    kickerServo2.setPosition(KICKER_UP);
+                    sleep(250); // Adjust timing for speed
+                    kickerServo1.setPosition(KICKER_REST);
+                    kickerServo2.setPosition(KICKER_REST);
+                    sleep(250);
+                }
             }
             lastBState = gamepad1.b;
 
-            // --- Transfer Wheels Control (Toggle - Button X) ---
-            if (gamepad1.x && !lastXState) {
-                transferOn = !transferOn;
-            }
-            lastXState = gamepad1.x;
-
-            // Apply power to Intake Motors
-            intakeMotor1.setPower(intakeOn ? 1.0 : 0.0);
-            intakeMotor2.setPower(intakeOn ? 1.0 : 0.0);
-
-            // Apply power to Outtake (Flywheel) Motors
-            outtakeMotor1.setPower(outtakeOn ? 1.0 : 0.0);
-            outtakeMotor2.setPower(outtakeOn ? 1.0 : 0.0);
-            
-            // Apply power to Transfer Motor
-            transferMotor.setPower(transferOn ? 1.0 : 0.0);
+            // Apply power to Intake and Transfer Motors
+            double power = intakeTransferOn ? 1.0 : 0.0;
+            intakeMotor.setPower(power);
+            transferMotor.setPower(power);
 
             telemetry.addData("Status", "Running");
-            telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
-            telemetry.addData("Transfer", transferOn ? "ON" : "OFF");
-            telemetry.addData("Outtake (Flywheel)", outtakeOn ? "ON" : "OFF");
+            telemetry.addData("Intake/Transfer", intakeTransferOn ? "ON" : "OFF");
             telemetry.update();
         }
     }
